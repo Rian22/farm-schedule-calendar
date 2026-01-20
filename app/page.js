@@ -74,15 +74,7 @@ function statusBorderClass(s, isToday) {
   return "border-gray-200";
 }
 
-function statusBorderLeftClass(s) {
-  if (!s) return "border-l-gray-300";
-  const k = s.toLowerCase();
-  if (k === "planned") return "border-l-blue-500";
-  if (k === "ongoing") return "border-l-yellow-500";
-  if (k === "completed") return "border-l-green-500";
-  if (k === "cancelled") return "border-l-red-500";
-  return "border-l-gray-300";
-}
+// mobile uses same calendar grid; no left border indicator needed
 
 function includeByKegiatanOrCompleted(it) {
   const id = Number(it.kegiatan_id) || 0;
@@ -270,7 +262,7 @@ export default function Page() {
               </button>
             </div>
           </div>
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm hidden sm:block">
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m - 1)}>
                 <ChevronLeft />
@@ -364,84 +356,6 @@ export default function Page() {
                   );
                 })}
               </div>
-            </div>
-          </div>
-          <div className="mt-6 sm:hidden">
-            <div className="mb-3 flex items-center justify-between">
-              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m - 1)}>
-                <ChevronLeft />
-              </button>
-              <div className="text-base font-semibold">{formatMonthTitle(currentMonthDate)}</div>
-              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m + 1)}>
-                <ChevronRight />
-              </button>
-            </div>
-            <div className="overflow-x-auto whitespace-nowrap">
-              {monthDays.map((d, idx) => {
-                const key = d.toISOString().slice(0, 10);
-                const items = (scheduleByDay.get(key) || []).filter(includeByKegiatanOrCompleted).sort((a, b) => {
-                  const ai = Number(a.kegiatan_id) || 0;
-                  const bi = Number(b.kegiatan_id) || 0;
-                  return ai - bi;
-                });
-                if (!items.length) return null;
-                const it = items[0];
-                const l = lahanMap.get(it.lahan_id);
-                const k = kegiatanMap.get(it.kegiatan_id);
-                return (
-                  <div
-                    key={`mobile-${idx}`}
-                    className={[
-                      "inline-block align-top min-w-[240px] mr-2 rounded-md border px-3 py-2 bg-white",
-                      "border-l-4",
-                      statusBorderLeftClass(it.status)
-                    ].join(" ")}
-                  >
-                    <div className="text-sm font-semibold">{formatShortDate(d)}</div>
-                    <div className="mt-1 text-sm truncate">{(l?.nama_lahan || "Lahan")}</div>
-                    <div className="mt-1 text-xs text-gray-700 truncate">{(k?.nama_kegiatan || "Kegiatan")} • {statusLabel(it.status)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="mt-6 sm:hidden">
-            <div className="mb-3 flex items-center justify-between">
-              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m - 1)}>
-                <ChevronLeft />
-              </button>
-              <div className="text-base font-semibold">{formatMonthTitle(currentMonthDate)}</div>
-              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m + 1)}>
-                <ChevronRight />
-              </button>
-            </div>
-            <div className="overflow-x-auto whitespace-nowrap">
-              {monthDays.map((d, idx) => {
-                const key = d.toISOString().slice(0, 10);
-                const items = (scheduleByDay.get(key) || []).filter(includeByKegiatanOrCompleted).sort((a, b) => {
-                  const ai = Number(a.kegiatan_id) || 0;
-                  const bi = Number(b.kegiatan_id) || 0;
-                  return ai - bi;
-                });
-                if (!items.length) return null;
-                const it = items[0];
-                const l = lahanMap.get(it.lahan_id);
-                const k = kegiatanMap.get(it.kegiatan_id);
-                return (
-                  <div
-                    key={`mobile-${idx}`}
-                    className={[
-                      "inline-block align-top min-w-[240px] mr-2 rounded-md border px-3 py-2 bg-white",
-                      "border-l-4",
-                      statusBorderLeftClass(it.status)
-                    ].join(" ")}
-                  >
-                    <div className="text-sm font-semibold">{formatShortDate(d)}</div>
-                    <div className="mt-1 text-sm truncate">{(l?.nama_lahan || "Lahan")}</div>
-                    <div className="mt-1 text-xs text-gray-700 truncate">{(k?.nama_kegiatan || "Kegiatan")} • {statusLabel(it.status)}</div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
