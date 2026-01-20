@@ -18,11 +18,19 @@ function formatDateLong(d) {
   return d.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
+function formatShortDate(d) {
+  return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "2-digit" });
+}
+
 function timeFromExcelDate(dateStr) {
   const d = new Date(dateStr);
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
+}
+
+function isNumericString(v) {
+  return /^[0-9]+$/.test(String(v || "").trim());
 }
 
 function statusClass(s) {
@@ -64,6 +72,22 @@ function statusBorderClass(s, isToday) {
   if (k === "completed") return "border-green-300";
   if (k === "cancelled") return "border-red-300";
   return "border-gray-200";
+}
+
+function statusBorderLeftClass(s) {
+  if (!s) return "border-l-gray-300";
+  const k = s.toLowerCase();
+  if (k === "planned") return "border-l-blue-500";
+  if (k === "ongoing") return "border-l-yellow-500";
+  if (k === "completed") return "border-l-green-500";
+  if (k === "cancelled") return "border-l-red-500";
+  return "border-l-gray-300";
+}
+
+function includeByKegiatanOrCompleted(it) {
+  const id = Number(it.kegiatan_id) || 0;
+  const s = (it.status || "").toLowerCase();
+  return (id >= 1 && id <= 21) || s === "completed";
 }
 
 function StatusLegend() {
@@ -133,12 +157,18 @@ export default function Page() {
   }, [users]);
 
   const filteredSchedules = useMemo(() => {
+    const lahanQuery = String(selectedLahan || "").toLowerCase();
+    const kegiatanQuery = String(selectedKegiatan || "").toLowerCase();
     return schedules.filter(s => {
-      const okLahan = selectedLahan ? String(s.lahan_id) === String(selectedLahan) : true;
-      const okKeg = selectedKegiatan ? String(s.kegiatan_id) === String(selectedKegiatan) : true;
+      const okLahan = lahanQuery
+        ? ((lahanMap.get(s.lahan_id)?.nama_lahan || "").toLowerCase().includes(lahanQuery))
+        : true;
+      const okKeg = kegiatanQuery
+        ? ((kegiatanMap.get(s.kegiatan_id)?.nama_kegiatan || "").toLowerCase().includes(kegiatanQuery))
+        : true;
       return okLahan && okKeg;
     });
-  }, [schedules, selectedLahan, selectedKegiatan]);
+  }, [schedules, selectedLahan, selectedKegiatan, lahanMap, kegiatanMap]);
 
   const monthDays = useMemo(() => {
     const start = new Date(currentMonthDate);
@@ -187,7 +217,7 @@ export default function Page() {
             <div className="rounded-md bg-green-600 p-2 text-white">
               <Calendar size={20} />
             </div>
-            <h1 className="text-lg font-bold sm:text-xl">Jadwal Kegiatan Pertanian</h1>
+            <h1 className="text-lg font-bold sm:text-xl">Jadwal Kegiatan Pertanian UBIPRENEUR</h1>
           </div>
           <button className="btn btn-outline sm:hidden">
             <Filter size={16} />
@@ -198,33 +228,35 @@ export default function Page() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="sm:col-span-1">
               <label className="block text-sm font-medium text-gray-700">Filter Lahan</label>
-              <select
+              <input
+                list="lahanList"
                 className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                placeholder="Ketik nama atau pilih lahan"
                 value={selectedLahan}
                 onChange={e => setSelectedLahan(e.target.value)}
-              >
-                <option value="">Semua Lahan</option>
+              />
+              <datalist id="lahanList">
+                <option value=""></option>
                 {lahan.map(l => (
-                  <option key={l.lahan_id} value={l.lahan_id}>
-                    {l.nama_lahan}
-                  </option>
+                  <option key={l.lahan_id} value={l.nama_lahan}>{l.nama_lahan}</option>
                 ))}
-              </select>
+              </datalist>
             </div>
             <div className="sm:col-span-1">
               <label className="block text-sm font-medium text-gray-700">Filter Kegiatan</label>
-              <select
+              <input
+                list="kegiatanList"
                 className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                placeholder="Ketik nama atau pilih kegiatan"
                 value={selectedKegiatan}
                 onChange={e => setSelectedKegiatan(e.target.value)}
-              >
-                <option value="">Semua Kegiatan</option>
+              />
+              <datalist id="kegiatanList">
+                <option value=""></option>
                 {kegiatan.map(k => (
-                  <option key={k.kegiatan_id} value={k.kegiatan_id}>
-                    {k.nama_kegiatan}
-                  </option>
+                  <option key={k.kegiatan_id} value={k.nama_kegiatan}>{k.nama_kegiatan}</option>
                 ))}
-              </select>
+              </datalist>
             </div>
             <div className="flex items-end">
               <button
@@ -238,7 +270,7 @@ export default function Page() {
               </button>
             </div>
           </div>
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm hidden sm:block">
             <div className="mb-4 flex items-center justify-between">
               <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m - 1)}>
                 <ChevronLeft />
@@ -248,48 +280,169 @@ export default function Page() {
                 <ChevronRight />
               </button>
             </div>
-            <div className="grid grid-cols-7 gap-2 text-center text-sm text-gray-600">
-              {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map(d => (
-                <div key={d} className="py-2 font-medium">{d}</div>
-              ))}
+            <div className="overflow-x-auto">
+              <div className="min-w-[720px]">
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-sm text-gray-600">
+                  {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map(d => (
+                    <div key={d} className="py-2 font-medium">{d}</div>
+                  ))}
+                </div>
+                <div className="mt-2 grid grid-cols-7 gap-1 sm:gap-2">
+                  {monthDays.map((d, idx) => {
+                    const inCurrentMonth = d.getMonth() === currentMonthDate.getMonth();
+                    const isToday = d.toDateString() === today.toDateString();
+                    const key = d.toISOString().slice(0, 10);
+                    const items = scheduleByDay.get(key) || [];
+                    const primary = items[0];
+                    const primaryStatus = primary?.status || "";
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => openModalForDate(d)}
+                        className={[
+                          "rounded-lg border p-2 sm:p-2 text-left transition hover:scale-[1.02] hover:shadow-sm",
+                          inCurrentMonth ? statusBgClass(primaryStatus) : "bg-gray-50 text-gray-400",
+                          statusBorderClass(primaryStatus, isToday)
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm sm:text-base font-semibold">{d.getDate()}</span>
+                          {primary && (
+                            <span className={`badge ${statusClass(primaryStatus)} hidden sm:inline-flex`}>{statusLabel(primaryStatus)}</span>
+                          )}
+                        </div>
+                        {primary && (
+                          <div className="mt-1 sm:mt-2 text-xs sm:text-xs font-semibold text-gray-800">
+                            <span className="block truncate">{(lahanMap.get(primary.lahan_id)?.nama_lahan || "Lahan")}</span>
+                            <span className="hidden sm:inline">
+                              {" - "}{(kegiatanMap.get(primary.kegiatan_id)?.nama_kegiatan || "Kegiatan")}
+                            </span>
+                            {items.length > 1 && (
+                              <span className="ml-2 hidden sm:inline text-[11px] text-gray-500">+{items.length - 1}</span>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            <div className="mt-2 grid grid-cols-7 gap-2">
+            <StatusLegend />
+            <div className="mt-6">
+              <div className="space-y-3">
+                {monthDays.map((d, idx) => {
+                  if (d.getMonth() !== currentMonthDate.getMonth()) return null;
+                  const key = d.toISOString().slice(0, 10);
+                  const items = (scheduleByDay.get(key) || [])
+                    .filter(includeByKegiatanOrCompleted)
+                    .sort((a, b) => {
+                      const ai = Number(a.kegiatan_id) || 0;
+                      const bi = Number(b.kegiatan_id) || 0;
+                      return ai - bi;
+                    });
+                  if (!items.length) return null;
+                  return (
+                    <div key={`list-${idx}`} className="card p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-sm font-semibold">{d.toLocaleDateString("id-ID", { day: "2-digit", month: "long" })}</div>
+                        <div className="text-xs text-gray-500">{items.length} kegiatan</div>
+                      </div>
+                      <div className="space-y-1">
+                        {items.map(it => {
+                          const l = lahanMap.get(it.lahan_id);
+                          const k = kegiatanMap.get(it.kegiatan_id);
+                          return (
+                            <div key={`detail-${key}-${it.id_schedules}`} className="flex items-center justify-between text-sm">
+                              <div className="truncate">{(l?.nama_lahan || "Lahan")}{" - "}{(k?.nama_kegiatan || "Kegiatan")}</div>
+                              <span className={`badge ${statusClass(it.status)}`}>{statusLabel(it.status)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 sm:hidden">
+            <div className="mb-3 flex items-center justify-between">
+              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m - 1)}>
+                <ChevronLeft />
+              </button>
+              <div className="text-base font-semibold">{formatMonthTitle(currentMonthDate)}</div>
+              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m + 1)}>
+                <ChevronRight />
+              </button>
+            </div>
+            <div className="overflow-x-auto whitespace-nowrap">
               {monthDays.map((d, idx) => {
-                const inCurrentMonth = d.getMonth() === currentMonthDate.getMonth();
-                const isToday = d.toDateString() === today.toDateString();
                 const key = d.toISOString().slice(0, 10);
-                const items = scheduleByDay.get(key) || [];
-                const primary = items[0];
-                const primaryStatus = primary?.status || "";
+                const items = (scheduleByDay.get(key) || []).filter(includeByKegiatanOrCompleted).sort((a, b) => {
+                  const ai = Number(a.kegiatan_id) || 0;
+                  const bi = Number(b.kegiatan_id) || 0;
+                  return ai - bi;
+                });
+                if (!items.length) return null;
+                const it = items[0];
+                const l = lahanMap.get(it.lahan_id);
+                const k = kegiatanMap.get(it.kegiatan_id);
                 return (
-                  <button
-                    key={idx}
-                    onClick={() => openModalForDate(d)}
+                  <div
+                    key={`mobile-${idx}`}
                     className={[
-                      "rounded-lg border p-2 text-left transition hover:scale-[1.02] hover:shadow-sm",
-                      inCurrentMonth ? statusBgClass(primaryStatus) : "bg-gray-50 text-gray-400",
-                      statusBorderClass(primaryStatus, isToday)
+                      "inline-block align-top min-w-[240px] mr-2 rounded-md border px-3 py-2 bg-white",
+                      "border-l-4",
+                      statusBorderLeftClass(it.status)
                     ].join(" ")}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">{d.getDate()}</span>
-                      {primary && (
-                        <span className={`badge ${statusClass(primaryStatus)}`}>{statusLabel(primaryStatus)}</span>
-                      )}
-                    </div>
-                    {primary && (
-                      <div className="mt-2 text-xs font-medium text-gray-700">
-                        {(lahanMap.get(primary.lahan_id)?.nama_lahan || "Lahan")}{" "}-{" "}{(kegiatanMap.get(primary.kegiatan_id)?.nama_kegiatan || "Kegiatan")}
-                        {items.length > 1 && (
-                          <span className="ml-2 text-[11px] text-gray-500">+{items.length - 1}</span>
-                        )}
-                      </div>
-                    )}
-                  </button>
+                    <div className="text-sm font-semibold">{formatShortDate(d)}</div>
+                    <div className="mt-1 text-sm truncate">{(l?.nama_lahan || "Lahan")}</div>
+                    <div className="mt-1 text-xs text-gray-700 truncate">{(k?.nama_kegiatan || "Kegiatan")} • {statusLabel(it.status)}</div>
+                  </div>
                 );
               })}
             </div>
-            <StatusLegend />
+          </div>
+          <div className="mt-6 sm:hidden">
+            <div className="mb-3 flex items-center justify-between">
+              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m - 1)}>
+                <ChevronLeft />
+              </button>
+              <div className="text-base font-semibold">{formatMonthTitle(currentMonthDate)}</div>
+              <button className="btn btn-outline btn-icon" onClick={() => setMonthOffset(m => m + 1)}>
+                <ChevronRight />
+              </button>
+            </div>
+            <div className="overflow-x-auto whitespace-nowrap">
+              {monthDays.map((d, idx) => {
+                const key = d.toISOString().slice(0, 10);
+                const items = (scheduleByDay.get(key) || []).filter(includeByKegiatanOrCompleted).sort((a, b) => {
+                  const ai = Number(a.kegiatan_id) || 0;
+                  const bi = Number(b.kegiatan_id) || 0;
+                  return ai - bi;
+                });
+                if (!items.length) return null;
+                const it = items[0];
+                const l = lahanMap.get(it.lahan_id);
+                const k = kegiatanMap.get(it.kegiatan_id);
+                return (
+                  <div
+                    key={`mobile-${idx}`}
+                    className={[
+                      "inline-block align-top min-w-[240px] mr-2 rounded-md border px-3 py-2 bg-white",
+                      "border-l-4",
+                      statusBorderLeftClass(it.status)
+                    ].join(" ")}
+                  >
+                    <div className="text-sm font-semibold">{formatShortDate(d)}</div>
+                    <div className="mt-1 text-sm truncate">{(l?.nama_lahan || "Lahan")}</div>
+                    <div className="mt-1 text-xs text-gray-700 truncate">{(k?.nama_kegiatan || "Kegiatan")} • {statusLabel(it.status)}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
