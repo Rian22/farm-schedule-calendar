@@ -129,8 +129,8 @@ export default function Page() {
   const [monthOffset, setMonthOffset] = useState(0);
   const currentMonthDate = useMemo(() => {
     const base = new Date(today);
-    base.setMonth(base.getMonth() + monthOffset);
     base.setDate(1);
+    base.setMonth(base.getMonth() + monthOffset);
     return base;
   }, [today, monthOffset]);
   const [lahan, setLahan] = useState([]);
