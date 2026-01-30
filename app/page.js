@@ -10,7 +10,24 @@ const ENDPOINTS = {
 };
 
 function toLocalDate(dateStr) {
-  const d = new Date(dateStr);
+  if (dateStr instanceof Date) {
+    return new Date(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
+  }
+  const s = String(dateStr || "").trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    return new Date(y, mo, d);
+  }
+  const n = Number(s);
+  if (!Number.isNaN(n) && s !== "") {
+    const base = new Date(1899, 11, 30);
+    const dt = new Date(base.getTime() + n * 86400000);
+    return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  }
+  const d = new Date(s);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
@@ -23,7 +40,14 @@ function formatShortDate(d) {
 }
 
 function timeFromExcelDate(dateStr) {
-  const d = new Date(dateStr);
+  const s = String(dateStr || "").trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (m) {
+    const hh = String(Number(m[1])).padStart(2, "0");
+    const mm = String(Number(m[2])).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  const d = new Date(s);
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
