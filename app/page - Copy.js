@@ -76,13 +76,6 @@ function statusBorderClass(s, isToday) {
 
 // mobile uses same calendar grid; no left border indicator needed
 
-function dateKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 function includeByKegiatanOrCompleted(it) {
   const id = Number(it.kegiatan_id) || 0;
   const s = (it.status || "").toLowerCase();
@@ -186,7 +179,7 @@ export default function Page() {
   const scheduleByDay = useMemo(() => {
     const m = new Map();
     for (const s of filteredSchedules) {
-      const key = dateKey(s.tanggal);
+      const key = s.tanggal.toISOString().slice(0, 10);
       if (!m.has(key)) m.set(key, []);
       m.get(key).push(s);
     }
@@ -195,7 +188,7 @@ export default function Page() {
 
   function openModalForDate(d) {
     const inCurrentMonth = d.getMonth() === currentMonthDate.getMonth();
-    const key = dateKey(d);
+    const key = d.toISOString().slice(0, 10);
     const items = scheduleByDay.get(key) || [];
     if (inCurrentMonth && items.length) setModalDate(d);
   }
@@ -290,7 +283,7 @@ export default function Page() {
                   {monthDays.map((d, idx) => {
                     const inCurrentMonth = d.getMonth() === currentMonthDate.getMonth();
                     const isToday = d.toDateString() === today.toDateString();
-                    const key = dateKey(d);
+                    const key = d.toISOString().slice(0, 10);
                     const items = scheduleByDay.get(key) || [];
                     const primary = items[0];
                     const primaryStatus = primary?.status || "";
@@ -332,7 +325,7 @@ export default function Page() {
               <div className="space-y-3">
                 {monthDays.map((d, idx) => {
                   if (d.getMonth() !== currentMonthDate.getMonth()) return null;
-                  const key = dateKey(d);
+                  const key = d.toISOString().slice(0, 10);
                   const items = (scheduleByDay.get(key) || [])
                     .filter(includeByKegiatanOrCompleted)
                     .sort((a, b) => {
@@ -375,7 +368,7 @@ export default function Page() {
               <button className="btn btn-outline" onClick={closeModal}>Tutup</button>
             </div>
             <div className="space-y-3">
-              {(scheduleByDay.get(dateKey(modalDate)) || []).map(it => {
+              {(scheduleByDay.get(modalDate.toISOString().slice(0, 10)) || []).map(it => {
                 const l = lahanMap.get(it.lahan_id);
                 const k = kegiatanMap.get(it.kegiatan_id);
                 const u = usersMap.get(it.user_id);
